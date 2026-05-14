@@ -2,10 +2,10 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
   <title>Yuki VTuber AI</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+JP:wght@400;700&family=Quicksand:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 
   <!-- Live2D SDKs -->
@@ -16,19 +16,25 @@
 </head>
 <body>
 
-  <!-- Stars background -->
-  <div class="stars" id="stars"></div>
+  <!-- Ambient particles -->
+  <canvas id="particles-bg"></canvas>
 
   <!-- Setup overlay -->
   <div class="overlay" id="overlay">
     <div class="card">
-      <div class="card-icon">🌸</div>
-      <h2>Yuki VTuber AI</h2>
-      <p>Sua VTuber pessoal com Live2D! Coloque sua chave do Groq para começar. Ela fica salva só no seu navegador.</p>
-      <input type="password" id="key-inp" placeholder="gsk_..." autocomplete="off"/>
-      <button onclick="start()">Iniciar Stream ✨</button>
+      <div class="card-sakura">🌸</div>
+      <h2>Yuki<span>ゆき</span></h2>
+      <p>Sua VTuber pessoal com IA! Cole sua chave Groq para começar. Salva só no seu navegador.</p>
+      <div class="input-wrap">
+        <span class="input-icon">🔑</span>
+        <input type="password" id="key-inp" placeholder="gsk_..." autocomplete="off"/>
+      </div>
+      <button onclick="start()">
+        <span>Iniciar Stream</span>
+        <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+      </button>
       <p class="card-note">
-        🔒 Chave salva localmente · Groq gratuito em
+        🔒 Salvo localmente · Groq grátis em
         <a href="https://console.groq.com" target="_blank">console.groq.com</a>
       </p>
     </div>
@@ -36,13 +42,22 @@
 
   <!-- Topbar -->
   <header class="topbar">
-    <div>
-      <div class="topbar-logo">🌸 Yuki VTuber AI</div>
-      <div class="topbar-sub">LIVE2D · GROQ · EDGE TTS</div>
+    <div class="topbar-left">
+      <div class="topbar-logo">
+        <span class="logo-icon">🌸</span>
+        <span class="logo-text">YUKI</span>
+        <span class="logo-jp">ゆき</span>
+      </div>
+      <div class="topbar-pills">
+        <span class="pill">LIVE2D</span>
+        <span class="pill">GROQ</span>
+        <span class="pill">TTS</span>
+      </div>
     </div>
     <div class="live-badge">
+      <div class="live-ring"></div>
       <div class="live-dot"></div>
-      AO VIVO
+      <span>AO VIVO</span>
     </div>
   </header>
 
@@ -51,33 +66,58 @@
 
     <!-- Live2D Stage -->
     <div class="stage-wrap" id="stage-wrap">
-      <div class="model-loading" id="model-loading">
-        <div class="spinner"></div>
-        <p>Carregando modelo Live2D...</p>
-      </div>
-      <canvas id="live2d-canvas"></canvas>
-      <div class="stage-glow"></div>
-      <div class="stage-overlay"></div>
-      <div class="name-tag">Yuki — ゆき</div>
+      <!-- Scan lines overlay -->
+      <div class="scanlines"></div>
 
-      <div class="info-panel">
-        <div class="wave-row">
-          <span class="wave-label" id="wave-label">FALANDO</span>
-          <div id="wave-wrap">
-            <div class="wave-bar"></div>
-            <div class="wave-bar"></div>
-            <div class="wave-bar"></div>
-            <div class="wave-bar"></div>
-            <div class="wave-bar"></div>
-            <div class="wave-bar"></div>
-            <div class="wave-bar"></div>
-          </div>
+      <div class="model-loading" id="model-loading">
+        <div class="loader-ring"></div>
+        <p>Carregando Yuki...</p>
+      </div>
+
+      <canvas id="live2d-canvas"></canvas>
+
+      <!-- Bottom glow -->
+      <div class="stage-glow"></div>
+
+      <!-- Corner accents -->
+      <div class="corner tl"></div>
+      <div class="corner tr"></div>
+      <div class="corner bl"></div>
+      <div class="corner br"></div>
+
+      <!-- Name tag -->
+      <div class="name-tag">
+        <span class="name-main">Yuki</span>
+        <span class="name-sep">—</span>
+        <span class="name-jp">ゆき</span>
+      </div>
+
+      <!-- Status / Wave bar -->
+      <div class="status-bar" id="status-bar">
+        <div class="wave-wrap" id="wave-wrap">
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
         </div>
-        <div class="controls-row">
-          <button class="ctrl-btn on" id="btn-voice" onclick="toggleVoice()">🔊 Voz</button>
-          <button class="ctrl-btn" id="btn-stop" onclick="stopSpeech()">⏹ Parar</button>
-          <button class="ctrl-btn" onclick="clearChat()">🗑 Limpar</button>
-        </div>
+        <span id="wave-label">FALANDO</span>
+      </div>
+
+      <!-- Controls -->
+      <div class="controls-row">
+        <button class="ctrl-btn on" id="btn-voice" onclick="toggleVoice()">
+          <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
+          <span>Voz</span>
+        </button>
+        <button class="ctrl-btn" id="btn-stop" onclick="stopSpeech()">
+          <svg viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>
+          <span>Parar</span>
+        </button>
+        <button class="ctrl-btn" onclick="clearChat()">
+          <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zm2.46-7.12l1.41-1.41L12 12.59l2.12-2.12 1.41 1.41L13.41 14l2.12 2.12-1.41 1.41L12 15.41l-2.12 2.12-1.41-1.41L10.59 14l-2.13-2.12zM15.5 4l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+          <span>Limpar</span>
+        </button>
       </div>
     </div>
 
@@ -87,15 +127,15 @@
         <div class="msg ai">
           <div class="msg-av">Y</div>
           <div class="msg-body">
-            <div class="msg-who">YUKI</div>
-            <div class="msg-bub">Oi oi~! Sou a Yuki, sua VTuber pessoal! ✨ Pode falar comigo sobre qualquer coisa~ (づ｡◕‿‿◕｡)づ</div>
+            <div class="msg-who">YUKI <span class="msg-time" id="init-time"></span></div>
+            <div class="msg-bub">Oi oi~! Sou a Yuki, sua VTuber pessoal! ✨ Pode falar comigo sobre qualquer coisa, senpai~ (づ｡◕‿‿◕｡)づ</div>
           </div>
         </div>
       </div>
       <div class="input-area">
         <textarea
           id="inp"
-          placeholder="Fala comigo, senpai~ (Enter envia)"
+          placeholder="Fala comigo, senpai~ ↵ envia"
           rows="1"
           onkeydown="onKey(event)"
           oninput="resize(this)"
@@ -109,5 +149,11 @@
   </main>
 
   <script src="app.js"></script>
+  <script>
+    // Set initial time
+    const t = new Date();
+    document.getElementById('init-time').textContent =
+      t.getHours().toString().padStart(2,'0') + ':' + t.getMinutes().toString().padStart(2,'0');
+  </script>
 </body>
 </html>
