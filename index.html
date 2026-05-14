@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Yuki VTuber AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Live2D SDKs -->
+  <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/dylanNew/live2d/webgl/Live2D/lib/live2d.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pixi.js@6.5.2/dist/browser/pixi.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/index.min.js"></script>
+</head>
+<body>
+
+  <!-- Stars background -->
+  <div class="stars" id="stars"></div>
+
+  <!-- Setup overlay -->
+  <div class="overlay" id="overlay">
+    <div class="card">
+      <div class="card-icon">🌸</div>
+      <h2>Yuki VTuber AI</h2>
+      <p>Sua VTuber pessoal com Live2D! Coloque sua chave do Groq para começar. Ela fica salva só no seu navegador.</p>
+      <input type="password" id="key-inp" placeholder="gsk_..." autocomplete="off"/>
+      <button onclick="start()">Iniciar Stream ✨</button>
+      <p class="card-note">
+        🔒 Chave salva localmente · Groq gratuito em
+        <a href="https://console.groq.com" target="_blank">console.groq.com</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- Topbar -->
+  <header class="topbar">
+    <div>
+      <div class="topbar-logo">🌸 Yuki VTuber AI</div>
+      <div class="topbar-sub">LIVE2D · GROQ · EDGE TTS</div>
+    </div>
+    <div class="live-badge">
+      <div class="live-dot"></div>
+      AO VIVO
+    </div>
+  </header>
+
+  <!-- Main layout -->
+  <main class="main">
+
+    <!-- Live2D Stage -->
+    <div class="stage-wrap" id="stage-wrap">
+      <div class="model-loading" id="model-loading">
+        <div class="spinner"></div>
+        <p>Carregando modelo Live2D...</p>
+      </div>
+      <canvas id="live2d-canvas"></canvas>
+      <div class="stage-glow"></div>
+      <div class="stage-overlay"></div>
+      <div class="name-tag">Yuki — ゆき</div>
+
+      <div class="info-panel">
+        <div class="wave-row">
+          <span class="wave-label" id="wave-label">FALANDO</span>
+          <div id="wave-wrap">
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+          </div>
+        </div>
+        <div class="controls-row">
+          <button class="ctrl-btn on" id="btn-voice" onclick="toggleVoice()">🔊 Voz</button>
+          <button class="ctrl-btn" id="btn-stop" onclick="stopSpeech()">⏹ Parar</button>
+          <button class="ctrl-btn" onclick="clearChat()">🗑 Limpar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chat -->
+    <div class="chat-wrap">
+      <div class="messages" id="msgs">
+        <div class="msg ai">
+          <div class="msg-av">Y</div>
+          <div class="msg-body">
+            <div class="msg-who">YUKI</div>
+            <div class="msg-bub">Oi oi~! Sou a Yuki, sua VTuber pessoal! ✨ Pode falar comigo sobre qualquer coisa~ (づ｡◕‿‿◕｡)づ</div>
+          </div>
+        </div>
+      </div>
+      <div class="input-area">
+        <textarea
+          id="inp"
+          placeholder="Fala comigo, senpai~ (Enter envia)"
+          rows="1"
+          onkeydown="onKey(event)"
+          oninput="resize(this)"
+        ></textarea>
+        <button class="send-btn" onclick="send()">
+          <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+        </button>
+      </div>
+    </div>
+
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
