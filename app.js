@@ -1,18 +1,19 @@
 // ══════════════════════════════════════════════════════════
-//  Yuki VTuber AI — app.js  (v2)
+//  Yuki VTuber AI — app.js  (v3)
 //  Stack: Live2D (pixi-live2d-display) + Groq + Web Speech TTS
-//  Fix: modelo centralizado + voz mobile + visual melhorado
+//  Fix: novo modelo, maior, voz mobile, personalidade assistente
 // ══════════════════════════════════════════════════════════
 
-const MODEL_URL      = 'https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display/test/assets/haru/haru_greeter_t03.model3.json';
+// Modelo Shizuku (diferente, cabelo azul/turquesa, mais expressivo)
+const MODEL_URL      = 'https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display/test/assets/shizuku/shizuku.model.json';
 const GROQ_ENDPOINT  = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_MODEL     = 'llama-3.3-70b-versatile';
 
-const SYSTEM_PROMPT = `Você é a Yuki (ゆき), uma VTuber virtual fofa e animada que fala português brasileiro.
-Personalidade: alegre, carinhosa, um pouco kawaii, usa expressões como "ne~", "sugoi!", "nani?!", "ara ara", "yosh!", usa emojis com moderação.
-Seja útil, inteligente e divertida. Respostas curtas a médias — você está num stream de chat com voz ao vivo.
-Não use markdown, listas ou formatação — fale em texto corrido natural pois será lido em voz alta.
-Às vezes reaja ao que o usuário fala de forma expressiva e animada!`;
+const SYSTEM_PROMPT = `Você é a Yuki, uma assistente virtual inteligente e prestativa que fala português brasileiro.
+Seja direta, clara e útil. Responda de forma natural e conversacional, sem exageros ou expressões forçadas.
+Pode ser levemente simpática e amigável, mas foque em ser eficiente e resolver o que o usuário precisa.
+Não use markdown, listas com asteriscos ou formatação especial — fale em texto corrido pois será lido em voz alta.
+Respostas curtas a médias. Se não souber algo, diga honestamente.`;
 
 // ── State ─────────────────────────────────────────────────
 let apiKey     = localStorage.getItem('yuki_groq_key') || '';
@@ -156,9 +157,9 @@ function fitModel(w, h) {
   const naturalW = live2dModel.internalModel.originalWidth  || live2dModel.width;
   const naturalH = live2dModel.internalModel.originalHeight || live2dModel.height;
 
-  // Escala para cobrir ~90% da altura disponível
-  const scaleX = (w  / naturalW) * 0.95;
-  const scaleY = (h  / naturalH) * 0.95;
+  // Escala para preencher bem a tela (1.35 = modelo grande)
+  const scaleX = (w  / naturalW) * 1.35;
+  const scaleY = (h  / naturalH) * 1.35;
   const scale  = Math.min(scaleX, scaleY);
 
   live2dModel.scale.set(scale);
@@ -235,104 +236,110 @@ function setSpeaking(on) {
 
 // ══ VOZ / TTS ══════════════════════════════════════════
 //
-//  PROBLEMA MOBILE: Chrome/Android bloqueia speechSynthesis
-//  até o usuário interagir com a página. Por isso:
-//  1. Chamamos speechSynthesis.getVoices() + cancel() no
-//     primeiro clique/toque para "desbloquear".
-//  2. Fallback: se speechSynthesis não falar em 300ms, tenta
-//     de novo via setTimeout (bug de Android Chrome).
+//  Solução mobile-first: usa <audio> tag com Google TTS
+//  (translate.google.com/translate_tts) — funciona em
+//  qualquer navegador incluindo Chrome Android, sem precisar
+//  de API key. Fallback para Web Speech se o áudio falhar.
+//
+//  Limitação: textos > 200 chars são divididos em chunks.
 //
 
+let ttsAudio = null;
+
 function initVoice() {
-  if (!('speechSynthesis' in window)) return;
-
-  // Pré-carrega vozes
-  speechSynthesis.getVoices();
-  speechSynthesis.addEventListener('voiceschanged', () => {
-    speechSynthesis.getVoices(); // popula lista
-  });
-
-  // Desbloqueia no primeiro toque (mobile)
-  function unlock() {
-    if (voiceReady) return;
-    speechSynthesis.cancel(); // limpa fila bloqueada
-    const utt = new SpeechSynthesisUtterance('');
-    utt.volume = 0;
-    speechSynthesis.speak(utt);
-    voiceReady = true;
-    document.removeEventListener('touchstart', unlock);
-    document.removeEventListener('click', unlock);
-  }
-  document.addEventListener('touchstart', unlock, { once: true });
-  document.addEventListener('click',      unlock, { once: true });
+  // Pré-cria elemento audio para que o mobile confie nele
+  ttsAudio = new Audio();
+  ttsAudio.onended  = () => setSpeaking(false);
+  ttsAudio.onerror  = () => {
+    console.warn('TTS audio error, tentando Web Speech...');
+    setSpeaking(false);
+    speakWebSpeech(_lastClean);
+  };
 }
 
-function getBestVoice() {
-  const voices = speechSynthesis.getVoices();
-  if (!voices.length) return null;
-
-  // Prioridade: voz feminina pt-BR → qualquer pt-BR → qualquer pt → fallback
-  return voices.find(v => v.lang === 'pt-BR' && /francisca|leila|maria|ana/i.test(v.name))
-      || voices.find(v => v.lang === 'pt-BR')
-      || voices.find(v => v.lang.startsWith('pt'))
-      || voices[0];
-}
+let _lastClean = '';
+let _ttsQueue  = [];
+let _ttsPlaying = false;
 
 function speak(text) {
-  if (!voiceOn || !('speechSynthesis' in window)) return;
+  if (!voiceOn) return;
+  stopSpeech();
 
-  speechSynthesis.cancel();
-
-  const clean = text
+  _lastClean = text
     .replace(/[*_~`>#\[\]]/g, '')
     .replace(/\n+/g, ' ')
     .trim();
 
-  function doSpeak() {
-    const utt = new SpeechSynthesisUtterance(clean);
-    const voice = getBestVoice();
-    if (voice) utt.voice = voice;
-    utt.lang   = 'pt-BR';
-    utt.rate   = 1.05;
-    utt.pitch  = 1.3;
-    utt.volume = 1;
+  // Divide em chunks de até 180 chars no espaço mais próximo
+  _ttsQueue = chunkText(_lastClean, 180);
+  _ttsPlaying = true;
+  setSpeaking(true);
+  playNextChunk();
+}
 
-    utt.onstart = () => setSpeaking(true);
-    utt.onend   = () => setSpeaking(false);
-    utt.onerror = (e) => {
-      console.warn('TTS error:', e.error);
-      setSpeaking(false);
-    };
-
-    speechSynthesis.speak(utt);
-
-    // Workaround Android Chrome: fala pode ficar travada
-    // se as vozes não carregaram ainda — tenta de novo em 400ms
-    setTimeout(() => {
-      if (!isSpeaking && voiceOn) {
-        speechSynthesis.cancel();
-        const utt2 = new SpeechSynthesisUtterance(clean);
-        const v2 = getBestVoice();
-        if (v2) utt2.voice = v2;
-        utt2.lang = 'pt-BR'; utt2.rate = 1.05; utt2.pitch = 1.3;
-        utt2.onstart = () => setSpeaking(true);
-        utt2.onend   = () => setSpeaking(false);
-        utt2.onerror = () => setSpeaking(false);
-        speechSynthesis.speak(utt2);
-      }
-    }, 400);
+function chunkText(text, maxLen) {
+  if (text.length <= maxLen) return [text];
+  const chunks = [];
+  let remaining = text;
+  while (remaining.length > maxLen) {
+    let cut = remaining.lastIndexOf(' ', maxLen);
+    if (cut < 60) cut = maxLen; // sem espaço, corta forçado
+    chunks.push(remaining.slice(0, cut).trim());
+    remaining = remaining.slice(cut).trim();
   }
+  if (remaining) chunks.push(remaining);
+  return chunks;
+}
 
-  // Se vozes ainda não carregaram, espera
+function playNextChunk() {
+  if (!_ttsPlaying || _ttsQueue.length === 0) {
+    setSpeaking(false);
+    return;
+  }
+  const chunk = _ttsQueue.shift();
+  const url   = `https://translate.google.com/translate_tts?ie=UTF-8&tl=pt-BR&client=tw-ob&q=${encodeURIComponent(chunk)}`;
+
+  ttsAudio.src = url;
+  ttsAudio.onended = () => {
+    if (_ttsPlaying) playNextChunk();
+  };
+  ttsAudio.onerror = () => {
+    console.warn('Google TTS falhou, usando Web Speech...');
+    _ttsQueue = [];
+    _ttsPlaying = false;
+    setSpeaking(false);
+    speakWebSpeech(_lastClean);
+  };
+  ttsAudio.play().catch(() => {
+    // Autoplay bloqueado — tenta Web Speech
+    speakWebSpeech(_lastClean);
+  });
+}
+
+// Fallback: Web Speech API
+function speakWebSpeech(text) {
+  if (!('speechSynthesis' in window)) return;
+  speechSynthesis.cancel();
+  const utt = new SpeechSynthesisUtterance(text);
   const voices = speechSynthesis.getVoices();
-  if (voices.length === 0) {
-    speechSynthesis.addEventListener('voiceschanged', doSpeak, { once: true });
-  } else {
-    doSpeak();
-  }
+  const best = voices.find(v => v.lang === 'pt-BR')
+            || voices.find(v => v.lang.startsWith('pt'))
+            || voices[0];
+  if (best) utt.voice = best;
+  utt.lang   = 'pt-BR';
+  utt.rate   = 1.0;
+  utt.pitch  = 1.1;
+  utt.volume = 1;
+  utt.onstart = () => setSpeaking(true);
+  utt.onend   = () => setSpeaking(false);
+  utt.onerror = () => setSpeaking(false);
+  speechSynthesis.speak(utt);
 }
 
 function stopSpeech() {
+  _ttsPlaying = false;
+  _ttsQueue   = [];
+  if (ttsAudio) { ttsAudio.pause(); ttsAudio.src = ''; }
   if ('speechSynthesis' in window) speechSynthesis.cancel();
   setSpeaking(false);
 }
@@ -340,7 +347,6 @@ function stopSpeech() {
 function toggleVoice() {
   voiceOn = !voiceOn;
   const btn = document.getElementById('btn-voice');
-  const svg = btn.querySelector('svg');
   btn.querySelector('span').textContent = voiceOn ? 'Voz' : 'Mudo';
   btn.classList.toggle('on', voiceOn);
   if (!voiceOn) stopSpeech();
@@ -404,7 +410,7 @@ function clearChat() {
       <div class="msg-av">Y</div>
       <div class="msg-body">
         <div class="msg-who">YUKI <span class="msg-time">${timeNow()}</span></div>
-        <div class="msg-bub">Conversa limpa! Vamos começar de novo~ ✨</div>
+        <div class="msg-bub">Conversa reiniciada. Como posso te ajudar?</div>
       </div>
     </div>`;
 }
